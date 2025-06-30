@@ -11,7 +11,7 @@ const port = process.env.PORT||5000;
 app.use(cors());
 app.use(express.json());
 
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.i5g3jew.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
@@ -28,6 +28,7 @@ async function run() {
     // Connect the client to the server	(optional starting in v4.7)
     // await client.connect();
      const userCollection = client.db("userDb").collection("users");
+     const eventCollection = client.db("eventDb").collection('events');
 
 
      //JWT
@@ -41,15 +42,18 @@ async function run() {
             return error;
         }
         try{
-            const decoded = jwt.verify(token,process.env.JWT_SECRET);
+            const decoded = jwt.verify(token, process.env.JWT_SECRET);
             res.userId = decoded.id;
             next();
-        } catch{
+
+        } catch {
             const result = res.status(401).json({msg:'Invalid token'});
             return result;
 
         }
      };
+
+
 //Register
    app.post('/api/auth/register', async(req, res) => {
     const {name, photo, email, password} = req.body;
@@ -83,6 +87,30 @@ async function run() {
     
     res.json({token, user: {...user, password: undefined}});
    });
+
+
+ 
+   //create event
+   app.post('/events', verifyToken, async(req, res) =>{
+    const{title, description, location, date, time, name,image } = req.body;
+     
+    const event = {
+        title,
+        image,
+        description,
+        location,
+        name,
+        date,
+        time,
+        attendeeCount:0,
+        createdBy:new ObjectId(req.userId),
+        joinedUsers:[],
+    };
+   const result= await eventCollection.insertOne(event);
+    res.send(result);
+   })
+
+
     // Send a ping to confirm a successful connection
     // await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
