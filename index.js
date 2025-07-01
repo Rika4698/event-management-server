@@ -43,7 +43,7 @@ async function run() {
         }
         try{
             const decoded = jwt.verify(token, process.env.JWT_SECRET);
-            res.userId = decoded.id;
+            req.userId = decoded.id;
             next();
 
         } catch {
@@ -89,6 +89,101 @@ async function run() {
    });
 
 
+  // get all events by filter
+  app.get('/events', async(req,res) =>{
+    const{search, date, range} = req.query;
+    const query = {};
+    
+    if(search){
+        query.title = {$regex:search, $options:'i'};
+
+    }
+
+    const formatDate = (d) => d.toISOString().slice(0, 10);
+
+  const now = new Date();
+
+  // Calculate start/end dates without mutating the same object repeatedly
+  const startOfWeek = new Date(now);
+  startOfWeek.setDate(now.getDate() - now.getDay());
+  const endOfWeek = new Date(startOfWeek);
+  endOfWeek.setDate(startOfWeek.getDate() + 6);
+
+  const startOfLastWeek = new Date(startOfWeek);
+  startOfLastWeek.setDate(startOfWeek.getDate() - 7);
+  const endOfLastWeek = new Date(startOfWeek);
+  endOfLastWeek.setDate(startOfWeek.getDate() - 1);
+
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+  const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+
+  // Convert to strings YYYY-MM-DD because your events store date separately
+  const todayStr = formatDate(now);
+  const startOfWeekStr = formatDate(startOfWeek);
+  const endOfWeekStr = formatDate(endOfWeek);
+  const startOfLastWeekStr = formatDate(startOfLastWeek);
+  const endOfLastWeekStr = formatDate(endOfLastWeek);
+  const startOfMonthStr = formatDate(startOfMonth);
+  const endOfMonthStr = formatDate(endOfMonth);
+  const startOfLastMonthStr = formatDate(startOfLastMonth);
+  const endOfLastMonthStr = formatDate(endOfLastMonth);
+
+  if (range === 'today') {
+    query.date = todayStr; // exact match on date string
+  } else if (range === 'current-week') {
+    query.date = { $gte: startOfWeekStr, $lte: endOfWeekStr };
+  } else if (range === 'last-week') {
+    query.date = { $gte: startOfLastWeekStr, $lte: endOfLastWeekStr };
+  } else if (range === 'current-month') {
+    query.date = { $gte: startOfMonthStr, $lte: endOfMonthStr };
+  } else if (range === 'last-month') {
+    query.date = { $gte: startOfLastMonthStr, $lte: endOfLastMonthStr };
+  }
+
+     if (date) {
+  query.date = date;
+}
+
+      const events = await eventCollection
+        .find(query)
+        .sort({ date:-1, time: -1 })
+        .toArray();
+
+    res.send(events);
+
+  })
+
+//join event
+  app.post('/join/:id', verifyToken, async(req,res) => {
+    const id = req.params.id;
+    const userId = req.userId;
+
+    const event = await eventCollection.findOne({_id:new ObjectId(id)});
+
+    if(!event){
+      const result = res.status(404).json({message:"Event not found"});
+      return result;
+    }
+
+    if(event.joinedUsers.includes(userId)){
+      return res.status(400).json({message: "Already joined"});
+    }
+
+    const result = await eventCollection.updateOne(
+      {_id:new ObjectId(id)},
+      {
+
+        $inc:{attendeeCount:1},
+        $push:{joinedUsers:userId},
+      }
+    );
+    res.send(result);
+  });
+
+
  
    //create event
    app.post('/events', verifyToken, async(req, res) =>{
@@ -109,6 +204,9 @@ async function run() {
    const result= await eventCollection.insertOne(event);
     res.send(result);
    })
+
+
+   
 
 
     // Send a ping to confirm a successful connection
