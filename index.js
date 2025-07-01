@@ -203,7 +203,73 @@ async function run() {
     };
    const result= await eventCollection.insertOne(event);
     res.send(result);
-   })
+   });
+
+   //even id
+   app.get("/event/:id", verifyToken, async (req, res) => {
+  try {
+    const id = req.params.id;
+   
+    const event = await eventCollection.findOne({ _id: new ObjectId(id) });
+
+    if (!event) {
+      return res.status(404).json({ message: "Not Found" });
+    }
+    res.json(event);
+  } catch (err) {
+    res.status(500).json({ message: "Error", err });
+  }
+});
+
+//my event
+   app.get('/my-events/:userId', verifyToken, async (req, res) => {
+  const userId = req.params.userId;
+
+  try {
+    const myEvents = await eventCollection
+      .find({ createdBy:new ObjectId(req.userId) }) 
+      .sort({ date: -1, time: -1 })
+      .toArray();
+
+    res.send(myEvents);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+
+
+//update
+app.put('/event/:id',verifyToken, async(req,res)=>{
+  const id = req.params.id;
+  const updated = req.body;
+
+  const result = await eventCollection.updateOne(
+    {_id: new ObjectId(id)},
+    {
+      $set:{
+        title:updated.title,
+        description:updated.description,
+        name:updated.name,
+        image:updated.image,
+        location:updated.location,
+        date:updated.date,
+        time:updated.time,
+
+
+      },
+    }
+  );
+  res.send(result);
+});
+
+
+app.delete('/event/:id',verifyToken, async (req, res) => {
+        const id = req.params.id;
+        const filter = { _id: new ObjectId(id) };
+        const result = await eventCollection.deleteOne(filter);
+        res.send(result);
+    })
 
 
    
