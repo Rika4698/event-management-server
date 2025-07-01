@@ -156,6 +156,19 @@ async function run() {
 
   })
 
+  app.get("/events-limited", async (req, res) => {
+  try {
+    const events = await eventCollection
+      .find({})
+      .sort({ date: -1 }) // latest first
+      .limit(4)
+      .toArray();
+    res.send(events);
+  } catch (error) {
+    res.status(500).send({ message: "Error fetching events", error });
+  }
+});
+
 //join event
   app.post('/join/:id', verifyToken, async(req,res) => {
     const id = req.params.id;
